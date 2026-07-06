@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% set editing = site is not none %}
+{% block title %}{% if editing %}&#x7f16;&#x8f91;&#x7ad9;&#x70b9;{% else %}&#x65b0;&#x589e;&#x7ad9;&#x70b9;{% endif %} - GetBalance{% endblock %}
+
+{% block content %}
+<section class="panel form-panel tabbed-editor">
+    <form method="post" class="site-form tabbed-form" id="site_form">
+        <div class="tab-nav full" role="tablist" aria-label="&#x7ad9;&#x70b9;&#x914d;&#x7f6e;">
+            <button class="tab-button active" type="button" data-tab-target="balance_tab">&#x4f59;&#x989d;&#x914d;&#x7f6e;</button>
+            <button class="tab-button" type="button" data-tab-target="login_tab">&#x767b;&#x5f55;&#x914d;&#x7f6e;</button>
+        </div>
+
+        <section id="balance_tab" class="tab-panel full active">
+            <div class="tool-card curl-import full-width-block">
+                <div class="tool-card-head"><div><p class="section-label">Balance curl</p><h2>&#x7c98;&#x8d34;&#x4f59;&#x989d;&#x63a5;&#x53e3; curl</h2><p>&#x81ea;&#x52a8;&#x8bc6;&#x522b; URL&#x3001;Cookie&#x3001;Authorization &#x548c;&#x8bf7;&#x6c42;&#x4f53;&#x3002;</p></div></div>
+                <label><span>curl / curl bash</span><textarea id="curl_input" rows="7" placeholder="curl 'https://example.com/api/v1/auth/me' -H 'authorization: Bearer ...' -b 'session=...'"></textarea></label>
+                <div class="curl-import-actions"><button id="parse_curl_btn" type="button">&#x89e3;&#x6790;&#x5e76;&#x586b;&#x5145;</button><button id="preview_request_btn" type="button" class="secondary-button">&#x9884;&#x89c8; JSON</button><span id="curl_parse_status" class="muted">&#x7c98;&#x8d34;&#x540e;&#x53ef;&#x9884;&#x89c8; JSON &#x5e76;&#x70b9;&#x9009;&#x5b57;&#x6bb5;&#x8def;&#x5f84;&#x3002;</span></div>
+            </div>
+
+            <div id="preview_panel" class="preview-panel hidden">
+                <div class="preview-head"><div><p class="section-label">JSON preview</p><h3>&#x4f59;&#x989d;&#x63a5;&#x53e3;&#x8fd4;&#x56de;</h3><p>&#x70b9;&#x51fb;&#x5b57;&#x6bb5;&#x586b;&#x5165;&#x4f59;&#x989d;&#x6216;&#x5e01;&#x79cd;&#x8def;&#x5f84;&#x3002;</p></div><span id="preview_status" class="muted">&#x5c1a;&#x672a;&#x8bf7;&#x6c42;</span></div>
+                <div class="preview-columns"><section class="preview-block"><h4>&#x8fd4;&#x56de; JSON</h4><pre id="preview_json">&#x6682;&#x65e0;&#x6570;&#x636e;</pre></section><section class="preview-block"><h4>&#x53ef;&#x9009;&#x5b57;&#x6bb5;&#x8def;&#x5f84;</h4><div id="path_candidates" class="path-candidates"><p class="muted">&#x8bf7;&#x6c42;&#x6210;&#x529f;&#x540e;&#x5217;&#x51fa;&#x8def;&#x5f84;&#x3002;</p></div></section></div>
+            </div>
+
+            <div class="tab-grid">
+                <div class="form-section full"><p class="section-label">Balance request</p><h3>&#x4f59;&#x989d;&#x8bf7;&#x6c42;</h3></div>
+                <label><span>&#x540d;&#x79f0; *</span><input name="name" value="{{ site.name if editing else '' }}" required></label>
+                <label><span>Base URL *</span><input name="base_url" placeholder="https://example.com" value="{{ site.base_url if editing else '' }}" required></label>
+                <label><span>&#x4f59;&#x989d;&#x63a5;&#x53e3;&#x8def;&#x5f84; *</span><input name="balance_endpoint" placeholder="/api/user/balance" value="{{ site.balance_endpoint if editing else '/api/balance' }}" required></label>
+                <label><span>&#x8bf7;&#x6c42;&#x65b9;&#x6cd5;</span><select name="method">{% set current_method = site.method if editing else 'GET' %}{% for option in ["GET", "POST", "PUT", "PATCH", "DELETE"] %}<option value="{{ option }}" {% if current_method == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></label>
+                <label><span>Adapter</span><select name="adapter">{% set current_adapter = site.adapter if editing else 'generic_json' %}{% for adapter in adapters %}<option value="{{ adapter }}" {% if current_adapter == adapter %}selected{% endif %}>{{ adapter }}</option>{% endfor %}</select></label>
+                <label><span>Authorization</span><input name="authorization" placeholder="Bearer xxx" value="{{ site.authorization if editing else '' }}"></label>
+                <label class="full"><span>Cookie</span><textarea name="cookie" rows="4" placeholder="session=...">{{ site.cookie if editing else '' }}</textarea></label>
+                <label class="full"><span>&#x989d;&#x5916;&#x8bf7;&#x6c42;&#x5934;&#xff08;JSON&#xff09;</span><textarea name="extra_headers" rows="5" placeholder='{"X-Token":"abc"}'>{{ site.extra_headers if editing else '{}' }}</textarea></label>
+                <label class="full"><span>&#x8bf7;&#x6c42;&#x4f53;</span><textarea name="request_body" rows="4" placeholder='{"foo":"bar"} or a=1&b=2'>{{ site.request_body if editing else '' }}</textarea></label>
+                <label><span>&#x4f59;&#x989d;&#x5b57;&#x6bb5;&#x8def;&#x5f84; *</span><input name="balance_path" placeholder="data.balance" value="{{ site.balance_path if editing else 'balance' }}" required></label>
+                <label><span>&#x5e01;&#x79cd;&#x5b57;&#x6bb5;&#x8def;&#x5f84;</span><input name="currency_path" placeholder="data.currency" value="{{ site.currency_path if editing else '' }}"></label>
+                <label><span>&#x9ed8;&#x8ba4;&#x5e01;&#x79cd;</span><input name="default_currency" value="{{ site.default_currency if editing else 'USD' }}"></label>
+                <label><span>&#x5355;&#x4f4d;&#x6362;&#x7b97;</span><input name="scale" value="{{ site.scale if editing else '1' }}"></label>
+                <label class="full"><span>&#x5907;&#x6ce8;</span><textarea name="notes" rows="4">{{ site.notes if editing else '' }}</textarea></label>
+                <label class="checkbox full">{% set current_active = site.is_active if editing else 1 %}<input type="checkbox" name="is_active" value="1" {% if current_active %}checked{% endif %}><span>&#x542f;&#x7528;&#x8be5;&#x7ad9;&#x70b9;</span></label>
+            </div>
+        </section>
+
+        <section id="login_tab" class="tab-panel full hidden">
+            <div class="tool-card full login-tool-card">
+                <div class="tool-card-head"><div><p class="section-label">Login curl</p><h2>&#x7c98;&#x8d34;&#x767b;&#x5f55;&#x63a5;&#x53e3; curl</h2><p>&#x751f;&#x6210; API &#x91cd;&#x767b;&#x914d;&#x7f6e;&#xff0c;&#x4e0d;&#x7ed5;&#x8fc7;&#x4eba;&#x673a;&#x9a8c;&#x8bc1;&#x3002;</p></div></div>
+                <label><span>curl / curl bash</span><textarea id="login_curl_input" rows="7" placeholder="curl 'https://example.com/api/login' -H 'content-type: application/json' --data-raw '{&quot;email&quot;:&quot;you@example.com&quot;,&quot;password&quot;:&quot;password&quot;}'"></textarea></label>
+                <div class="curl-import-actions"><button id="parse_login_curl_btn" type="button">&#x89e3;&#x6790;&#x5e76;&#x586b;&#x5145;</button><button id="preview_login_btn" type="button" class="secondary-button">&#x9884;&#x89c8;&#x767b;&#x5f55; JSON</button><span id="login_curl_status" class="muted">email/password &#x4f1a;&#x66ff;&#x6362;&#x6210; &#123;&#123;username&#125;&#125; / &#123;&#123;password&#125;&#125; &#x6a21;&#x677f;&#x3002;</span></div>
+            </div>
+
+            <div id="login_preview_panel" class="preview-panel hidden full">
+                <div class="preview-head"><div><p class="section-label">Login JSON</p><h3>&#x767b;&#x5f55;&#x8fd4;&#x56de;</h3><p>&#x70b9;&#x51fb;&#x5b57;&#x6bb5;&#x586b;&#x5165; Token &#x8def;&#x5f84;&#x3002;</p></div><span id="login_preview_status" class="muted">&#x5c1a;&#x672a;&#x8bf7;&#x6c42;</span></div>
+                <div class="preview-columns"><section class="preview-block"><h4>&#x767b;&#x5f55;&#x8fd4;&#x56de; JSON</h4><pre id="login_preview_json">&#x6682;&#x65e0;&#x6570;&#x636e;</pre></section><section class="preview-block"><h4>&#x53ef;&#x9009; Token &#x8def;&#x5f84;</h4><div id="login_path_candidates" class="path-candidates"><p class="muted">&#x8bf7;&#x6c42;&#x6210;&#x529f;&#x540e;&#x5217;&#x51fa;&#x8def;&#x5f84;&#x3002;</p></div></section></div>
+            </div>
+
+            <div class="tab-grid">
+                <div class="form-section full"><p class="section-label">Auto login</p><h3>&#x81ea;&#x52a8;&#x767b;&#x5f55;</h3></div>
+                <label class="checkbox full">{% set current_login_enabled = site.login_enabled if editing else 0 %}<input type="checkbox" name="login_enabled" value="1" {% if current_login_enabled %}checked{% endif %}><span>&#x542f;&#x7528;&#x767b;&#x5f55;&#x6001;&#x5931;&#x6548;&#x81ea;&#x52a8;&#x91cd;&#x767b;</span></label>
+                <label><span>&#x767b;&#x5f55; URL</span><input name="login_url" placeholder="https://example.com/api/login" value="{{ site.login_url if editing else '' }}"></label>
+                <label><span>&#x767b;&#x5f55;&#x65b9;&#x5f0f;</span><select name="login_method">{% set current_login_method = site.login_method if editing else 'api' %}<option value="api" {% if current_login_method == 'api' %}selected{% endif %}>api</option></select></label>
+                <label><span>&#x8d26;&#x53f7; / &#x90ae;&#x7bb1;</span><input name="login_username" value="{{ site.login_username if editing else '' }}"></label>
+                <label><span>&#x5bc6;&#x7801;</span><input name="login_password" type="password" value="{{ site.login_password if editing else '' }}"></label>
+                <label class="full"><span>&#x767b;&#x5f55;&#x8bf7;&#x6c42;&#x5934;&#xff08;JSON&#xff09;</span><textarea name="login_headers" rows="5" placeholder='{"content-type":"application/json"}'>{{ site.login_headers if editing else '{"content-type":"application/json"}' }}</textarea></label>
+                <label class="full"><span>&#x767b;&#x5f55;&#x8bf7;&#x6c42;&#x4f53;&#x6a21;&#x677f;</span><textarea name="login_body_template" rows="5" placeholder='{"email":"&#123;&#123;username&#125;&#125;","password":"&#123;&#123;password&#125;&#125;"}'>{{ site.login_body_template if editing else '' }}</textarea></label>
+                <label><span>Token &#x5b57;&#x6bb5;&#x8def;&#x5f84;</span><input name="login_token_path" placeholder="data.token" value="{{ site.login_token_path if editing else '' }}"></label>
+                <label><span>Token &#x524d;&#x7f00;</span><input name="login_token_prefix" placeholder="Bearer" value="{{ site.login_token_prefix if editing else 'Bearer' }}"></label>
+                <label class="checkbox full">{% set current_cookie_from_response = site.login_cookie_from_response if editing else 0 %}<input type="checkbox" name="login_cookie_from_response" value="1" {% if current_cookie_from_response %}checked{% endif %}><span>&#x4ece;&#x767b;&#x5f55;&#x54cd;&#x5e94; Set-Cookie &#x4fdd;&#x5b58; Cookie</span></label>
+                <label><span>&#x767b;&#x5f55;&#x5931;&#x6548;&#x72b6;&#x6001;&#x7801;</span><input name="auth_fail_status_codes" value="{{ site.auth_fail_status_codes if editing else '401,403' }}"></label>
+                <label class="full"><span>&#x767b;&#x5f55;&#x5931;&#x6548;&#x5173;&#x952e;&#x8bcd;</span><input name="auth_fail_keywords" value="{{ site.auth_fail_keywords if editing else 'unauthorized,token expired,login required' }}"></label>
+            </div>
+        </section>
+
+        <div class="form-actions full"><button type="submit">{% if editing %}&#x4fdd;&#x5b58;&#x4fee;&#x6539;{% else %}&#x521b;&#x5efa;&#x7ad9;&#x70b9;{% endif %}</button></div>
+    </form>
+</section>
+
+<script>
+(() => {
+    const $ = (id) => document.getElementById(id);
+    document.querySelectorAll(".tab-button").forEach((button) => {
+        button.addEventListener("click", () => {
+            document.querySelectorAll(".tab-button").forEach((item) => item.classList.toggle("active", item === button));
+            document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("hidden", panel.id !== button.dataset.tabTarget));
+        });
+    });
+
+    const parseButton = $("parse_curl_btn");
+    const previewButton = $("preview_request_btn");
+    const parseLoginButton = $("parse_login_curl_btn");
+    const previewLoginButton = $("preview_login_btn");
+    const input = $("curl_input");
+    const loginInput = $("login_curl_input");
+    const status = $("curl_parse_status");
+    const loginStatus = $("login_curl_status");
+    const loginPreviewStatus = $("login_preview_status");
+    const loginPreviewPanel = $("login_preview_panel");
+    const loginPreviewJson = $("login_preview_json");
+    const loginPathCandidates = $("login_path_candidates");
+    const previewStatus = $("preview_status");
+    const previewPanel = $("preview_panel");
+    const previewJson = $("preview_json");
+    const pathCandidates = $("path_candidates");
+    const form = $("site_form");
+    if (!parseButton || !previewButton || !parseLoginButton || !previewLoginButton || !input || !loginInput || !status || !loginStatus || !loginPreviewStatus || !loginPreviewPanel || !loginPreviewJson || !loginPathCandidates || !previewStatus || !previewPanel || !previewJson || !pathCandidates || !form) return;
+
+    const getField = (name) => form.querySelector(`[name="${name}"]`);
+    const setValue = (name, value) => { const field = getField(name); if (!field || value === undefined || value === null) return; if (field.type === "checkbox") field.checked = Boolean(value); else field.value = value; };
+    const setMessage = (el, text, cls = "muted") => { el.textContent = text; el.className = cls; };
+    const collectLeafPaths = (value, prefix = "", result = []) => { if (Array.isArray(value)) { if (!value.length && prefix) result.push({ path: prefix, value: [] }); value.forEach((item, index) => collectLeafPaths(item, prefix ? `${prefix}.${index}` : `${index}`, result)); return result; } if (value && typeof value === "object") { const entries = Object.entries(value); if (!entries.length && prefix) result.push({ path: prefix, value: {} }); entries.forEach(([key, item]) => collectLeafPaths(item, prefix ? `${prefix}.${key}` : key, result)); return result; } if (prefix) result.push({ path: prefix, value }); return result; };
+    const valuePreviewText = (value) => { if (typeof value === "string") return value.length > 160 ? `${value.slice(0, 160)}...` : value; try { return JSON.stringify(value); } catch { return String(value); } };
+    const makeMiniButton = (text, className, onClick) => { const btn = document.createElement("button"); btn.type = "button"; btn.className = className; btn.textContent = text; btn.addEventListener("click", onClick); return btn; };
+    const renderPathRows = (container, payload, buttonsFactory) => { const leafPaths = collectLeafPaths(payload).slice(0, 200); container.innerHTML = ""; if (!leafPaths.length) { container.innerHTML = '<p class="muted">No selectable paths found.</p>'; return; } leafPaths.forEach((item) => { const row = document.createElement("div"); row.className = "path-row"; const pathCode = document.createElement("code"); pathCode.textContent = item.path; const valuePreview = document.createElement("span"); valuePreview.className = "path-value"; valuePreview.textContent = valuePreviewText(item.value); const actions = document.createElement("div"); actions.className = "path-actions"; buttonsFactory(item).forEach((btn) => actions.appendChild(btn)); row.append(pathCode, valuePreview, actions); container.appendChild(row); }); };
+    const renderCandidates = (payload) => renderPathRows(pathCandidates, payload, (item) => { const buttons = [makeMiniButton("Set balance", "mini-button", () => { setValue("balance_path", item.path); setMessage(status, `balance_path = ${item.path}`, "success-text"); })]; if (typeof item.value === "string") buttons.push(makeMiniButton("Set currency", "mini-button secondary-button", () => { setValue("currency_path", item.path); setMessage(status, `currency_path = ${item.path}`, "success-text"); })); return buttons; });
+    const renderLoginCandidates = (payload) => renderPathRows(loginPathCandidates, payload, (item) => [makeMiniButton("Set token path", "mini-button", () => { setValue("login_token_path", item.path); setMessage(loginStatus, `login_token_path = ${item.path}`, "success-text"); })]);
+    const buildPreviewPayload = () => ({ base_url: getField("base_url")?.value || "", balance_endpoint: getField("balance_endpoint")?.value || "", method: getField("method")?.value || "GET", authorization: getField("authorization")?.value || "", cookie: getField("cookie")?.value || "", extra_headers: getField("extra_headers")?.value || "{}", request_body: getField("request_body")?.value || "" });
+    const buildLoginPreviewPayload = () => ({ login_url: getField("login_url")?.value || "", login_method: getField("login_method")?.value || "api", login_username: getField("login_username")?.value || "", login_password: getField("login_password")?.value || "", login_headers: getField("login_headers")?.value || "{}", login_body_template: getField("login_body_template")?.value || "" });
+    const parseCurlIntoForm = async (url, command, targetStatus, applyPayload) => { if (!command) { setMessage(targetStatus, "Please paste a curl command first.", "error-text"); return; } setMessage(targetStatus, "Parsing..."); const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.detail || "Parse failed"); applyPayload(payload); };
+    parseButton.addEventListener("click", async () => { parseButton.disabled = true; try { await parseCurlIntoForm("/api/tools/parse-curl", input.value.trim(), status, (payload) => { setValue("name", payload.name); setValue("base_url", payload.base_url); setValue("balance_endpoint", payload.balance_endpoint); setValue("method", payload.method); setValue("authorization", payload.authorization); setValue("cookie", payload.cookie); setValue("extra_headers", payload.extra_headers || "{}"); setValue("request_body", payload.request_body || ""); setValue("adapter", "generic_json"); setMessage(status, "Balance curl parsed. Preview JSON to choose paths.", "success-text"); }); } catch (error) { setMessage(status, error.message || "Parse failed", "error-text"); } finally { parseButton.disabled = false; } });
+    parseLoginButton.addEventListener("click", async () => { parseLoginButton.disabled = true; try { await parseCurlIntoForm("/api/tools/parse-login-curl", loginInput.value.trim(), loginStatus, (payload) => { setValue("login_enabled", true); setValue("login_url", payload.login_url); setValue("login_method", payload.login_method || "api"); setValue("login_username", payload.login_username || ""); setValue("login_password", payload.login_password || ""); setValue("login_headers", payload.login_headers || "{}"); setValue("login_body_template", payload.login_body_template || ""); setValue("login_token_prefix", payload.login_token_prefix || "Bearer"); setValue("login_cookie_from_response", Boolean(payload.login_cookie_from_response)); setMessage(loginStatus, "Login curl parsed. Preview login JSON and choose token path if needed.", "success-text"); }); } catch (error) { setMessage(loginStatus, error.message || "Parse failed", "error-text"); } finally { parseLoginButton.disabled = false; } });
+    previewButton.addEventListener("click", async () => { previewButton.disabled = true; previewPanel.classList.remove("hidden"); setMessage(previewStatus, "Requesting..."); previewJson.textContent = "Requesting..."; pathCandidates.innerHTML = '<p class="muted">Requesting...</p>'; try { const response = await fetch("/api/tools/preview-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPreviewPayload()) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.detail || "Request failed"); setMessage(previewStatus, "Request succeeded", "success-text"); previewJson.textContent = JSON.stringify(payload.payload, null, 2); renderCandidates(payload.payload); } catch (error) { setMessage(previewStatus, error.message || "Request failed", "error-text"); previewJson.textContent = "Request failed"; pathCandidates.innerHTML = '<p class="error-text">Could not preview JSON.</p>'; } finally { previewButton.disabled = false; } });
+    previewLoginButton.addEventListener("click", async () => { previewLoginButton.disabled = true; loginPreviewPanel.classList.remove("hidden"); setMessage(loginPreviewStatus, "Logging in..."); loginPreviewJson.textContent = "Logging in..."; loginPathCandidates.innerHTML = '<p class="muted">Logging in...</p>'; try { const response = await fetch("/api/tools/preview-login-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildLoginPreviewPayload()) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.detail || "Login request failed"); setMessage(loginPreviewStatus, "Login request succeeded", "success-text"); loginPreviewJson.textContent = JSON.stringify(payload.payload, null, 2); renderLoginCandidates(payload.payload); if (payload.cookies) setMessage(loginStatus, "Login response includes Set-Cookie. Enable cookie saving if this site uses cookie auth.", "success-text"); } catch (error) { setMessage(loginPreviewStatus, error.message || "Login request failed", "error-text"); loginPreviewJson.textContent = "Login request failed"; loginPathCandidates.innerHTML = '<p class="error-text">Could not preview login JSON.</p>'; } finally { previewLoginButton.disabled = false; } });
+})();
+</script>
+{% endblock %}

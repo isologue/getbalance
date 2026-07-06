@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GetBalance{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="ambient ambient-a" aria-hidden="true"></div>
+    <div class="ambient ambient-b" aria-hidden="true"></div>
+
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="GetBalance &#x9996;&#x9875;">
+                <span class="brand-mark">GB</span>
+                <span class="brand-copy">
+                    <strong>GetBalance</strong>
+                    <small>&#x672c;&#x5730;&#x4f59;&#x989d;&#x8d26;&#x672c;</small>
+                </span>
+            </a>
+            <nav class="topnav" aria-label="&#x4e3b;&#x5bfc;&#x822a;">
+                <a class="button slim" href="/sites/new">&#x65b0;&#x589e;&#x7ad9;&#x70b9;</a>
+            </nav>
+        </header>
+
+        <main class="container">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

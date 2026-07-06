@@ -1,0 +1,12 @@
+services:
+  getbalance:
+    build: .
+    container_name: getbalance
+    ports:
+      - "8000:8000"
+    environment:
+      - GETBALANCE_DB=/data/getbalance.sqlite3
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+

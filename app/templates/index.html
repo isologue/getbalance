@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}&#x4f59;&#x989d;&#x603b;&#x89c8; - GetBalance{% endblock %}
+
+{% block content %}
+{% set ns = namespace(ok=0, attention=0, inactive=0) %}
+{% for site in sites %}
+    {% if site.last_status in ["ok", "login_refreshed"] %}{% set ns.ok = ns.ok + 1 %}{% endif %}
+    {% if site.last_status in ["error", "login_failed", "need_manual_login"] or site.login_status == "need_manual_login" %}{% set ns.attention = ns.attention + 1 %}{% endif %}
+    {% if not site.is_active %}{% set ns.inactive = ns.inactive + 1 %}{% endif %}
+{% endfor %}
+
+<section class="panel ledger-panel overview-only">
+    <div class="panel-head compact-head no-title-head">
+        <div class="summary-strip" aria-label="&#x7ad9;&#x70b9;&#x6982;&#x89c8;">
+            <span class="summary-pill"><b>{{ sites|length }}</b>&#x7ad9;&#x70b9;</span>
+            <span class="summary-pill"><b>{{ ns.ok }}</b>&#x6b63;&#x5e38;</span>
+            <span class="summary-pill"><b>{{ ns.attention }}</b>&#x9700;&#x5904;&#x7406;</span>
+            <span class="summary-pill"><b>{{ ns.inactive }}</b>&#x505c;&#x7528;</span>
+        </div>
+        <div class="toolbar overview-toolbar">
+            <label class="auto-refresh-control" title="&#x5b9a;&#x65f6;&#x81ea;&#x52a8;&#x6279;&#x91cf;&#x5237;&#x65b0;">
+                <input id="auto_refresh_enabled" type="checkbox">
+                <span>&#x81ea;&#x52a8;</span>
+                <input id="auto_refresh_minutes" type="number" min="1" max="1440" step="1" value="5" aria-label="&#x81ea;&#x52a8;&#x5237;&#x65b0;&#x95f4;&#x9694;&#x5206;&#x949f;">
+                <span>&#x5206;&#x949f;</span>
+                <em id="auto_refresh_countdown">--:--</em>
+            </label>
+            <div id="page_status" class="page-status muted" role="status"></div>
+            {% if sites %}<button id="refresh_all_btn" type="button">&#x6279;&#x91cf;&#x5237;&#x65b0;</button>{% endif %}
+        </div>
+    </div>
+
+    {% if sites %}
+    <div class="card-grid">
+        {% for site in sites %}
+        <article class="card balance-card{% if not site.is_active %} is-muted{% endif %}" id="site-card-{{ site.id }}" data-site-id="{{ site.id }}">
+            <div class="card-head">
+                <div>
+                    <p class="card-kicker">Relay #{{ site.id }}</p>
+                    <h3>{{ site.name }}</h3>
+                </div>
+                <span class="status {{ site.last_status }}" data-field="status" data-status-value="{{ site.last_status }}">{{ site.last_status }}</span>
+            </div>
+
+            <div class="balance-readout">
+                <span class="balance-label">&#x5f53;&#x524d;&#x4f59;&#x989d;</span>
+                <strong data-field="balance">{{ "%.2f"|format(site.last_balance) if site.last_balance is not none else "-" }} {{ site.last_currency or site.default_currency }}</strong>
+            </div>
+
+            <a class="site-url" href="{{ site.base_url }}" target="_blank" rel="noopener noreferrer">{{ site.base_url }}</a>
+            <div class="status-line">
+                <span>&#x767b;&#x5f55; <b data-field="login_status" data-login-value="{{ site.login_status or 'not_configured' }}">{{ site.login_status or "not_configured" }}</b></span>
+                <span>&#x67e5;&#x8be2; <b data-field="checked_at">{{ site.last_checked_at or "-" }}</b></span>
+                <span>&#x9519;&#x8bef; <b data-field="error">{{ site.last_error or site.last_login_error or "-" }}</b></span>
+            </div>
+
+            <div class="manual-login-hint {% if site.login_status != 'need_manual_login' and site.last_status != 'need_manual_login' %}hidden{% endif %}" data-field="manual_hint">
+                &#x9700;&#x8981;&#x4eba;&#x5de5;&#x767b;&#x5f55;&#xff1a;&#x8bf7;&#x6253;&#x5f00;&#x7ad9;&#x70b9;&#x5b8c;&#x6210;&#x9a8c;&#x8bc1;&#x540e;&#xff0c;&#x56de;&#x5230;&#x8fd9;&#x91cc;&#x91cd;&#x65b0;&#x7c98;&#x8d34;&#x4f59;&#x989d; curl &#x6216;&#x66f4;&#x65b0; Cookie/Token&#x3002;
+            </div>
+
+            <div class="actions card-actions">
+                <button type="button" class="refresh-site-btn" data-site-id="{{ site.id }}">&#x5237;&#x65b0;</button>
+                <button type="button" class="login-site-btn secondary-button" data-site-id="{{ site.id }}">&#x91cd;&#x767b;</button>
+                <a class="button secondary-button" href="/history/{{ site.id }}">&#x5386;&#x53f2;</a>
+                <a class="button secondary-button" href="/sites/{{ site.id }}/edit">&#x7f16;&#x8f91;</a>
+                <form action="/sites/{{ site.id }}/delete" method="post" onsubmit="return confirm('\u786e\u8ba4\u5220\u9664\u8fd9\u4e2a\u7ad9\u70b9\uff1f\u5386\u53f2\u8bb0\u5f55\u4e5f\u4f1a\u4e00\u8d77\u5220\u9664\u3002');">
+                    <button class="danger subtle-danger" type="submit">&#x5220;&#x9664;</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty refined-empty">
+        <p class="eyebrow">No sites</p>
+        <h3>&#x8fd8;&#x6ca1;&#x6709;&#x7ad9;&#x70b9;</h3>
+        <p>&#x65b0;&#x589e;&#x7b2c;&#x4e00;&#x4e2a;&#x4e2d;&#x8f6c;&#x7ad9;&#xff0c;&#x7c98;&#x8d34;&#x4f59;&#x989d;&#x63a5;&#x53e3; curl &#x540e;&#x5373;&#x53ef;&#x5f00;&#x59cb;&#x7edf;&#x4e00;&#x67e5;&#x8be2;&#x3002;</p>
+        <a class="button" href="/sites/new">&#x65b0;&#x589e;&#x7ad9;&#x70b9;</a>
+    </div>
+    {% endif %}
+</section>
+
+<script>
+(() => {
+    const pageStatus = document.getElementById("page_status");
+    const refreshAllBtn = document.getElementById("refresh_all_btn");
+    const autoEnabled = document.getElementById("auto_refresh_enabled");
+    const autoMinutes = document.getElementById("auto_refresh_minutes");
+    const autoCountdown = document.getElementById("auto_refresh_countdown");
+    const statusLabels = { ok: "\u6b63\u5e38", error: "\u9519\u8bef", never: "\u672a\u67e5\u8be2", login_expired: "\u767b\u5f55\u5931\u6548", login_refreshed: "\u5df2\u91cd\u767b", need_manual_login: "\u9700\u4eba\u5de5\u767b\u5f55", login_failed: "\u91cd\u767b\u5931\u8d25", unknown: "\u672a\u77e5" };
+    const loginLabels = { ok: "\u5df2\u767b\u5f55", not_configured: "\u672a\u914d\u7f6e", login_expired: "\u767b\u5f55\u5931\u6548", need_manual_login: "\u9700\u4eba\u5de5\u767b\u5f55", login_failed: "\u767b\u5f55\u5931\u8d25" };
+    const labelFor = (map, value) => map[value] || value || "-";
+    const setPageStatus = (message, className = "muted") => { if (pageStatus) { pageStatus.textContent = message; pageStatus.className = `page-status ${className}`; } };
+    const formatMoney = (value) => { const num = Number(value); return Number.isFinite(num) ? (Math.round((num + Number.EPSILON) * 100) / 100).toFixed(2) : String(value); };
+    const formatBalance = (result) => (result.balance === null || result.balance === undefined) ? `- ${result.currency || ""}`.trim() : `${formatMoney(result.balance)} ${result.currency || ""}`.trim();
+    const setButtonLoading = (siteId, selector, loading, normalText, loadingText) => { const btn = document.getElementById(`site-card-${siteId}`)?.querySelector(selector); if (btn) { btn.disabled = loading; btn.textContent = loading ? loadingText : normalText; } };
+    const updateCard = (siteId, result, options = {}) => {
+        const card = document.getElementById(`site-card-${siteId}`); if (!card) return;
+        const status = result.status || "unknown";
+        const statusEl = card.querySelector('[data-field="status"]');
+        if (statusEl) { statusEl.textContent = labelFor(statusLabels, status); statusEl.className = `status ${status}`; statusEl.dataset.statusValue = status; }
+        const balanceEl = card.querySelector('[data-field="balance"]'); if (balanceEl && !options.preserveBalance) balanceEl.textContent = formatBalance(result);
+        const checkedAtEl = card.querySelector('[data-field="checked_at"]'); if (checkedAtEl && !options.preserveTime) checkedAtEl.textContent = new Date().toLocaleString();
+        const loginStatusEl = card.querySelector('[data-field="login_status"]'); if (loginStatusEl) { const loginStatus = result.login_status || "-"; loginStatusEl.textContent = labelFor(loginLabels, loginStatus); loginStatusEl.dataset.loginValue = loginStatus; }
+        const errorEl = card.querySelector('[data-field="error"]'); if (errorEl) errorEl.textContent = result.error || result.last_login_error || "-";
+        const manualHintEl = card.querySelector('[data-field="manual_hint"]'); if (manualHintEl) manualHintEl.classList.toggle("hidden", result.login_status !== "need_manual_login" && status !== "need_manual_login");
+    };
+    const refreshOne = async (siteId) => {
+        setButtonLoading(siteId, ".refresh-site-btn", true, "\u5237\u65b0", "\u5237\u65b0\u4e2d..."); setPageStatus(`\u6b63\u5728\u5237\u65b0 #${siteId}...`);
+        try { const response = await fetch(`/api/sites/${siteId}/refresh`, { method: "POST" }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "\u5237\u65b0\u5931\u8d25"); updateCard(siteId, result); const ok = result.status === "ok" || result.status === "login_refreshed"; setPageStatus(`#${siteId} ${ok ? "\u5237\u65b0\u5b8c\u6210" : labelFor(statusLabels, result.status)}`, ok ? "success-text" : "error-text"); } catch (error) { setPageStatus(error.message || "\u5237\u65b0\u5931\u8d25", "error-text"); } finally { setButtonLoading(siteId, ".refresh-site-btn", false, "\u5237\u65b0", "\u5237\u65b0\u4e2d..."); }
+    };
+    const loginOne = async (siteId) => {
+        setButtonLoading(siteId, ".login-site-btn", true, "\u91cd\u767b", "\u767b\u5f55\u4e2d..."); setPageStatus(`\u6b63\u5728\u91cd\u767b #${siteId}...`);
+        try { const response = await fetch(`/api/sites/${siteId}/login`, { method: "POST" }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "\u767b\u5f55\u5931\u8d25"); const nextStatus = result.status === "ok" ? "login_refreshed" : result.status; updateCard(siteId, { status: nextStatus, login_status: result.status === "ok" ? "ok" : result.status, error: result.error || "" }, { preserveBalance: true, preserveTime: true }); setPageStatus(result.status === "ok" ? `#${siteId} \u767b\u5f55\u6210\u529f` : (result.error || "\u767b\u5f55\u5931\u8d25"), result.status === "ok" ? "success-text" : "error-text"); } catch (error) { setPageStatus(error.message || "\u767b\u5f55\u5931\u8d25", "error-text"); } finally { setButtonLoading(siteId, ".login-site-btn", false, "\u91cd\u767b", "\u767b\u5f55\u4e2d..."); }
+    };
+    let refreshingAll = false;
+    const refreshAll = async (source = "manual") => {
+        if (!refreshAllBtn || refreshingAll) return;
+        refreshingAll = true; refreshAllBtn.disabled = true; refreshAllBtn.textContent = "\u5237\u65b0\u4e2d..."; setPageStatus(source === "auto" ? "\u81ea\u52a8\u5237\u65b0\u4e2d..." : "\u6b63\u5728\u6279\u91cf\u5237\u65b0...");
+        try { const response = await fetch("/api/refresh-all", { method: "POST" }); const results = await response.json(); if (!response.ok) throw new Error(results.detail || "\u6279\u91cf\u5237\u65b0\u5931\u8d25"); results.forEach((result) => updateCard(result.site_id, result)); const okCount = results.filter((result) => result.status === "ok" || result.status === "login_refreshed").length; setPageStatus(`\u5b8c\u6210 ${okCount}/${results.length}`, "success-text"); resetAutoTimer(); } catch (error) { setPageStatus(error.message || "\u6279\u91cf\u5237\u65b0\u5931\u8d25", "error-text"); } finally { refreshingAll = false; refreshAllBtn.disabled = false; refreshAllBtn.textContent = "\u6279\u91cf\u5237\u65b0"; }
+    };
+    document.querySelectorAll(".refresh-site-btn").forEach((button) => button.addEventListener("click", () => refreshOne(button.dataset.siteId)));
+    document.querySelectorAll(".login-site-btn").forEach((button) => button.addEventListener("click", () => loginOne(button.dataset.siteId)));
+    document.querySelectorAll('[data-field="status"]').forEach((el) => { const value = el.dataset.statusValue || el.textContent.trim(); el.textContent = labelFor(statusLabels, value); });
+    document.querySelectorAll('[data-field="login_status"]').forEach((el) => { const value = el.dataset.loginValue || el.textContent.trim(); el.textContent = labelFor(loginLabels, value); });
+    if (refreshAllBtn) refreshAllBtn.addEventListener("click", () => refreshAll("manual"));
+
+    let autoTimer = null;
+    let countdownTimer = null;
+    let nextRunAt = 0;
+    const readMinutes = () => Math.max(1, Math.min(1440, Number(autoMinutes?.value || 5) || 5));
+    const renderCountdown = () => {
+        if (!autoCountdown) return;
+        if (!autoEnabled?.checked || !refreshAllBtn) { autoCountdown.textContent = "off"; return; }
+        const left = Math.max(0, Math.ceil((nextRunAt - Date.now()) / 1000));
+        const mm = String(Math.floor(left / 60)).padStart(2, "0");
+        const ss = String(left % 60).padStart(2, "0");
+        autoCountdown.textContent = `${mm}:${ss}`;
+    };
+    function resetAutoTimer() {
+        if (autoTimer) clearTimeout(autoTimer);
+        if (countdownTimer) clearInterval(countdownTimer);
+        if (!autoEnabled || !autoMinutes) return;
+        localStorage.setItem("getbalance_auto_enabled", autoEnabled.checked ? "1" : "0");
+        localStorage.setItem("getbalance_auto_minutes", String(readMinutes()));
+        if (!autoEnabled.checked || !refreshAllBtn) { renderCountdown(); return; }
+        const delay = readMinutes() * 60 * 1000;
+        nextRunAt = Date.now() + delay;
+        renderCountdown();
+        countdownTimer = setInterval(renderCountdown, 1000);
+        autoTimer = setTimeout(() => refreshAll("auto"), delay);
+    }
+    if (autoEnabled && autoMinutes) {
+        autoEnabled.checked = localStorage.getItem("getbalance_auto_enabled") !== "0";
+        autoMinutes.value = localStorage.getItem("getbalance_auto_minutes") || "5";
+        autoEnabled.addEventListener("change", resetAutoTimer);
+        autoMinutes.addEventListener("change", resetAutoTimer);
+        autoMinutes.addEventListener("input", resetAutoTimer);
+        resetAutoTimer();
+    }
+})();
+</script>
+{% endblock %}

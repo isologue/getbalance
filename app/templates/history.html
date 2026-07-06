@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}&#x5386;&#x53f2;&#x8bb0;&#x5f55; - GetBalance{% endblock %}
+
+{% block content %}
+<section class="panel ledger-panel">
+    {% if history %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>&#x65f6;&#x95f4;</th><th>&#x72b6;&#x6001;</th><th>&#x4f59;&#x989d;</th><th>&#x5e01;&#x79cd;</th><th>&#x9519;&#x8bef;</th><th>&#x54cd;&#x5e94;&#x9884;&#x89c8;</th></tr></thead>
+            <tbody>
+                {% for row in history %}
+                <tr>
+                    <td>{{ row.checked_at }}</td>
+                    <td><span class="status {{ row.status }}">{{ row.status }}</span></td>
+                    <td>{{ "%.2f"|format(row.balance) if row.balance is not none else "-" }}</td>
+                    <td>{{ row.currency or "-" }}</td>
+                    <td>{{ row.error or "-" }}</td>
+                    <td><pre>{{ row.raw_response_preview or "-" }}</pre></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty refined-empty">
+        <p class="eyebrow">No history</p>
+        <h3>&#x6682;&#x65e0;&#x67e5;&#x8be2;&#x5386;&#x53f2;</h3>
+        <p>&#x5728;&#x603b;&#x89c8;&#x9875;&#x5237;&#x65b0;&#x4e00;&#x6b21;&#x7ad9;&#x70b9;&#x540e;&#xff0c;&#x8fd9;&#x91cc;&#x4f1a;&#x663e;&#x793a;&#x4f59;&#x989d;&#x548c;&#x9519;&#x8bef;&#x8bb0;&#x5f55;&#x3002;</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

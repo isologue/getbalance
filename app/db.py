@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -113,10 +114,140 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_history_site_checked
                 ON balance_history(site_id, checked_at DESC);
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
         for column_name, definition in LOGIN_COLUMNS.items():
             _ensure_sites_column(db, column_name, definition)
+        _ensure_auto_refresh_defaults(db)
+
+
+AUTO_REFRESH_DEFAULT_MINUTES = 5
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _ensure_app_settings_table(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
+
+
+def _setting_rows(db: sqlite3.Connection) -> dict[str, str]:
+    _ensure_app_settings_table(db)
+    rows = db.execute("SELECT key, value FROM app_settings").fetchall()
+    return {row["key"]: row["value"] for row in rows}
+
+
+def _set_setting(db: sqlite3.Connection, key: str, value: str) -> None:
+    db.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+
+
+def _ensure_auto_refresh_defaults(db: sqlite3.Connection) -> None:
+    settings = _setting_rows(db)
+    if "auto_refresh_enabled" not in settings:
+        _set_setting(db, "auto_refresh_enabled", "1")
+    if "auto_refresh_minutes" not in settings:
+        _set_setting(db, "auto_refresh_minutes", str(AUTO_REFRESH_DEFAULT_MINUTES))
+    if "auto_refresh_last_run_at" not in settings:
+        _set_setting(db, "auto_refresh_last_run_at", "")
+    if "auto_refresh_next_run_at" not in settings:
+        _set_setting(
+            db,
+            "auto_refresh_next_run_at",
+            _iso(_utc_now() + timedelta(minutes=AUTO_REFRESH_DEFAULT_MINUTES)),
+        )
+    if "auto_refresh_running" not in settings:
+        _set_setting(db, "auto_refresh_running", "0")
+    if "auto_refresh_last_error" not in settings:
+        _set_setting(db, "auto_refresh_last_error", "")
+
+
+def get_auto_refresh_settings() -> dict[str, Any]:
+    with get_db() as db:
+        _ensure_auto_refresh_defaults(db)
+        settings = _setting_rows(db)
+    minutes = int(settings.get("auto_refresh_minutes") or AUTO_REFRESH_DEFAULT_MINUTES)
+    minutes = max(1, min(1440, minutes))
+    next_run_at = settings.get("auto_refresh_next_run_at") or ""
+    return {
+        "enabled": settings.get("auto_refresh_enabled", "1") == "1",
+        "minutes": minutes,
+        "last_run_at": settings.get("auto_refresh_last_run_at") or "",
+        "next_run_at": next_run_at,
+        "running": settings.get("auto_refresh_running", "0") == "1",
+        "last_error": settings.get("auto_refresh_last_error") or "",
+        "server_now": _iso(_utc_now()),
+    }
+
+
+def update_auto_refresh_settings(*, enabled: bool, minutes: int) -> dict[str, Any]:
+    minutes = max(1, min(1440, int(minutes or AUTO_REFRESH_DEFAULT_MINUTES)))
+    with get_db() as db:
+        _ensure_auto_refresh_defaults(db)
+        _set_setting(db, "auto_refresh_enabled", "1" if enabled else "0")
+        _set_setting(db, "auto_refresh_minutes", str(minutes))
+        _set_setting(db, "auto_refresh_next_run_at", _iso(_utc_now() + timedelta(minutes=minutes)))
+        if not enabled:
+            _set_setting(db, "auto_refresh_running", "0")
+    return get_auto_refresh_settings()
+
+
+def mark_auto_refresh_started() -> None:
+    with get_db() as db:
+        _ensure_auto_refresh_defaults(db)
+        _set_setting(db, "auto_refresh_running", "1")
+        _set_setting(db, "auto_refresh_last_error", "")
+
+
+def mark_auto_refresh_finished(*, error: str = "") -> dict[str, Any]:
+    with get_db() as db:
+        _ensure_auto_refresh_defaults(db)
+        settings = _setting_rows(db)
+        minutes = max(1, min(1440, int(settings.get("auto_refresh_minutes") or AUTO_REFRESH_DEFAULT_MINUTES)))
+        now = _utc_now()
+        _set_setting(db, "auto_refresh_running", "0")
+        _set_setting(db, "auto_refresh_last_run_at", _iso(now))
+        _set_setting(db, "auto_refresh_next_run_at", _iso(now + timedelta(minutes=minutes)))
+        _set_setting(db, "auto_refresh_last_error", error)
+    return get_auto_refresh_settings()
+
+
+def auto_refresh_due() -> bool:
+    settings = get_auto_refresh_settings()
+    if not settings["enabled"] or settings["running"]:
+        return False
+    next_run_at = _parse_iso(settings.get("next_run_at"))
+    if next_run_at is None:
+        return True
+    return _utc_now() >= next_run_at
 
 
 def list_sites() -> list[dict[str, Any]]:

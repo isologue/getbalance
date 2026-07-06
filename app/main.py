@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -19,7 +20,13 @@ from app.login import is_auth_failure, login_site, preview_login_request
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init_db()
-    yield
+    task = asyncio.create_task(_auto_refresh_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 app = FastAPI(title="GetBalance", version="0.4.0", lifespan=lifespan)
@@ -225,6 +232,33 @@ async def _refresh_site(site_id: int) -> dict[str, Any]:
     return result
 
 
+async def _refresh_all_sites_for_background() -> None:
+    for site in db.list_sites():
+        try:
+            await _refresh_site(site["id"])
+        except Exception:
+            # ??????????????????
+            continue
+
+
+async def _auto_refresh_loop() -> None:
+    while True:
+        try:
+            if db.auto_refresh_due():
+                db.mark_auto_refresh_started()
+                error = ""
+                try:
+                    await _refresh_all_sites_for_background()
+                except Exception as exc:
+                    error = str(exc)
+                db.mark_auto_refresh_finished(error=error)
+        except Exception:
+            # ??????????????????????????
+            with suppress(Exception):
+                db.mark_auto_refresh_finished(error="background auto refresh crashed")
+        await asyncio.sleep(5)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request, "sites": db.list_sites()})
@@ -286,6 +320,20 @@ def history_page(site_id: int, request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "history.html",
         {"request": request, "site": site, "history": db.list_history(site_id)},
+    )
+
+
+@app.get("/api/settings/auto-refresh")
+def api_get_auto_refresh_settings() -> dict[str, Any]:
+    return db.get_auto_refresh_settings()
+
+
+@app.post("/api/settings/auto-refresh")
+async def api_update_auto_refresh_settings(request: Request) -> dict[str, Any]:
+    payload = await request.json()
+    return db.update_auto_refresh_settings(
+        enabled=_truthy(payload.get("enabled", True)),
+        minutes=int(payload.get("minutes") or 5),
     )
 
 

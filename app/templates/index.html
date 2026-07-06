@@ -114,50 +114,81 @@
         setButtonLoading(siteId, ".login-site-btn", true, "\u91cd\u767b", "\u767b\u5f55\u4e2d..."); setPageStatus(`\u6b63\u5728\u91cd\u767b #${siteId}...`);
         try { const response = await fetch(`/api/sites/${siteId}/login`, { method: "POST" }); const result = await response.json(); if (!response.ok) throw new Error(result.detail || "\u767b\u5f55\u5931\u8d25"); const nextStatus = result.status === "ok" ? "login_refreshed" : result.status; updateCard(siteId, { status: nextStatus, login_status: result.status === "ok" ? "ok" : result.status, error: result.error || "" }, { preserveBalance: true, preserveTime: true }); setPageStatus(result.status === "ok" ? `#${siteId} \u767b\u5f55\u6210\u529f` : (result.error || "\u767b\u5f55\u5931\u8d25"), result.status === "ok" ? "success-text" : "error-text"); } catch (error) { setPageStatus(error.message || "\u767b\u5f55\u5931\u8d25", "error-text"); } finally { setButtonLoading(siteId, ".login-site-btn", false, "\u91cd\u767b", "\u767b\u5f55\u4e2d..."); }
     };
+    const updateCardFromSite = (site) => {
+        updateCard(site.id, {
+            status: site.last_status || "never",
+            balance: site.last_balance,
+            currency: site.last_currency || site.default_currency,
+            login_status: site.login_status || "not_configured",
+            error: site.last_error || site.last_login_error || ""
+        }, { preserveTime: true });
+        const checkedAtEl = document.getElementById(`site-card-${site.id}`)?.querySelector('[data-field="checked_at"]');
+        if (checkedAtEl) checkedAtEl.textContent = site.last_checked_at || "-";
+    };
+
+    const loadSitesState = async () => {
+        const response = await fetch("/api/sites");
+        if (!response.ok) return;
+        const sites = await response.json();
+        sites.forEach(updateCardFromSite);
+    };
+
     let refreshingAll = false;
-    const refreshAll = async (source = "manual") => {
+    const refreshAll = async () => {
         if (!refreshAllBtn || refreshingAll) return;
-        refreshingAll = true; refreshAllBtn.disabled = true; refreshAllBtn.textContent = "\u5237\u65b0\u4e2d..."; setPageStatus(source === "auto" ? "\u81ea\u52a8\u5237\u65b0\u4e2d..." : "\u6b63\u5728\u6279\u91cf\u5237\u65b0...");
-        try { const response = await fetch("/api/refresh-all", { method: "POST" }); const results = await response.json(); if (!response.ok) throw new Error(results.detail || "\u6279\u91cf\u5237\u65b0\u5931\u8d25"); results.forEach((result) => updateCard(result.site_id, result)); const okCount = results.filter((result) => result.status === "ok" || result.status === "login_refreshed").length; setPageStatus(`\u5b8c\u6210 ${okCount}/${results.length}`, "success-text"); resetAutoTimer(); } catch (error) { setPageStatus(error.message || "\u6279\u91cf\u5237\u65b0\u5931\u8d25", "error-text"); } finally { refreshingAll = false; refreshAllBtn.disabled = false; refreshAllBtn.textContent = "\u6279\u91cf\u5237\u65b0"; }
+        refreshingAll = true; refreshAllBtn.disabled = true; refreshAllBtn.textContent = "\u5237\u65b0\u4e2d..."; setPageStatus("\u6b63\u5728\u6279\u91cf\u5237\u65b0...");
+        try { const response = await fetch("/api/refresh-all", { method: "POST" }); const results = await response.json(); if (!response.ok) throw new Error(results.detail || "\u6279\u91cf\u5237\u65b0\u5931\u8d25"); results.forEach((result) => updateCard(result.site_id, result)); const okCount = results.filter((result) => result.status === "ok" || result.status === "login_refreshed").length; setPageStatus(`\u5b8c\u6210 ${okCount}/${results.length}`, "success-text"); await loadAutoSettings(); } catch (error) { setPageStatus(error.message || "\u6279\u91cf\u5237\u65b0\u5931\u8d25", "error-text"); } finally { refreshingAll = false; refreshAllBtn.disabled = false; refreshAllBtn.textContent = "\u6279\u91cf\u5237\u65b0"; }
     };
     document.querySelectorAll(".refresh-site-btn").forEach((button) => button.addEventListener("click", () => refreshOne(button.dataset.siteId)));
     document.querySelectorAll(".login-site-btn").forEach((button) => button.addEventListener("click", () => loginOne(button.dataset.siteId)));
     document.querySelectorAll('[data-field="status"]').forEach((el) => { const value = el.dataset.statusValue || el.textContent.trim(); el.textContent = labelFor(statusLabels, value); });
     document.querySelectorAll('[data-field="login_status"]').forEach((el) => { const value = el.dataset.loginValue || el.textContent.trim(); el.textContent = labelFor(loginLabels, value); });
-    if (refreshAllBtn) refreshAllBtn.addEventListener("click", () => refreshAll("manual"));
+    if (refreshAllBtn) refreshAllBtn.addEventListener("click", refreshAll);
 
-    let autoTimer = null;
+    let autoSettings = null;
     let countdownTimer = null;
-    let nextRunAt = 0;
+    let settingsPollTimer = null;
     const readMinutes = () => Math.max(1, Math.min(1440, Number(autoMinutes?.value || 5) || 5));
-    const renderCountdown = () => {
+    const parseServerDate = (value) => value ? new Date(value).getTime() : 0;
+    const renderCountdown = async () => {
         if (!autoCountdown) return;
-        if (!autoEnabled?.checked || !refreshAllBtn) { autoCountdown.textContent = "off"; return; }
-        const left = Math.max(0, Math.ceil((nextRunAt - Date.now()) / 1000));
+        if (!autoSettings?.enabled || !autoSettings.next_run_at) { autoCountdown.textContent = "off"; return; }
+        const left = Math.max(0, Math.ceil((parseServerDate(autoSettings.next_run_at) - Date.now()) / 1000));
         const mm = String(Math.floor(left / 60)).padStart(2, "0");
         const ss = String(left % 60).padStart(2, "0");
-        autoCountdown.textContent = `${mm}:${ss}`;
+        autoCountdown.textContent = autoSettings.running ? "running" : `${mm}:${ss}`;
+        if (left === 0 && !autoSettings.running) {
+            setTimeout(async () => { await loadAutoSettings(); await loadSitesState(); }, 2500);
+        }
     };
-    function resetAutoTimer() {
-        if (autoTimer) clearTimeout(autoTimer);
-        if (countdownTimer) clearInterval(countdownTimer);
+    async function loadAutoSettings() {
         if (!autoEnabled || !autoMinutes) return;
-        localStorage.setItem("getbalance_auto_enabled", autoEnabled.checked ? "1" : "0");
-        localStorage.setItem("getbalance_auto_minutes", String(readMinutes()));
-        if (!autoEnabled.checked || !refreshAllBtn) { renderCountdown(); return; }
-        const delay = readMinutes() * 60 * 1000;
-        nextRunAt = Date.now() + delay;
+        const response = await fetch("/api/settings/auto-refresh");
+        if (!response.ok) return;
+        autoSettings = await response.json();
+        autoEnabled.checked = Boolean(autoSettings.enabled);
+        autoMinutes.value = autoSettings.minutes || 5;
         renderCountdown();
-        countdownTimer = setInterval(renderCountdown, 1000);
-        autoTimer = setTimeout(() => refreshAll("auto"), delay);
+    }
+    async function saveAutoSettings() {
+        if (!autoEnabled || !autoMinutes) return;
+        const response = await fetch("/api/settings/auto-refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: autoEnabled.checked, minutes: readMinutes() })
+        });
+        if (response.ok) {
+            autoSettings = await response.json();
+            renderCountdown();
+            setPageStatus(autoSettings.enabled ? `\u540e\u53f0\u5b9a\u65f6\uff1a${autoSettings.minutes}\u5206\u949f` : "\u540e\u53f0\u5b9a\u65f6\u5df2\u5173\u95ed", "muted");
+        }
     }
     if (autoEnabled && autoMinutes) {
-        autoEnabled.checked = localStorage.getItem("getbalance_auto_enabled") !== "0";
-        autoMinutes.value = localStorage.getItem("getbalance_auto_minutes") || "5";
-        autoEnabled.addEventListener("change", resetAutoTimer);
-        autoMinutes.addEventListener("change", resetAutoTimer);
-        autoMinutes.addEventListener("input", resetAutoTimer);
-        resetAutoTimer();
+        autoEnabled.addEventListener("change", saveAutoSettings);
+        autoMinutes.addEventListener("change", saveAutoSettings);
+        loadAutoSettings();
+        countdownTimer = setInterval(renderCountdown, 1000);
+        settingsPollTimer = setInterval(async () => { await loadAutoSettings(); await loadSitesState(); }, 30000);
     }
 })();
 </script>
